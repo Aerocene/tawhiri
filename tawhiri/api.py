@@ -152,7 +152,8 @@ def parse_request(data):
                                validator=lambda x: x > launch_alt)
         req['stop_datetime'] = \
             _extract_parameter(data, "stop_datetime", _rfc3339_to_timestamp,
-                               validator=lambda x: x > req['launch_datetime'])
+                               validator=lambda x: x > req['launch_datetime'],
+                               ignore=True)
     else:
         raise RequestException("Unknown profile '%s'." % req['profile'])
 
