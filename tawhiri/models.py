@@ -22,6 +22,8 @@ functions to combine models and termination conditions.
 
 import calendar
 import math
+import time
+from datetime import datetime, timedelta
 
 from . import interpolate
 
@@ -187,6 +189,15 @@ def float_profile(ascent_rate, float_altitude, stop_time, dataset, warningcounts
        at constant altitude to a float altitude which persists for some
        amount of time before stopping. Descent is in general not modelled.
     """
+
+    # make sure stop_time is within dataset
+    # adjust stop_time if necessary
+    # if no stop_time: use full dataset
+    ds_end = dataset.ds_time + timedelta(hours=dataset.forecast_hours(), minutes=-1)
+    ds_end_ts = time.mktime(ds_end.timetuple())
+
+    if stop_time is None or stop_time > ds_end_ts:
+        stop_time = ds_end_ts
 
     model_up = make_linear_model([make_constant_ascent(ascent_rate),
                                   make_wind_velocity(dataset, warningcounts)])
