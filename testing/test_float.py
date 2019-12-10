@@ -11,6 +11,7 @@ import calendar
 from tawhiri import solver, models, kml
 from tawhiri.dataset import Dataset as WindDataset
 from ruaumoko import Dataset as ElevationDataset
+from tawhiri.warnings import WarningCounts
 
 lat0 = 52.5563
 lng0 = 360 - 3.1970
@@ -19,7 +20,8 @@ t0 = calendar.timegm(datetime(2014, 2, 19, 15).timetuple())
 tE = calendar.timegm(datetime(2014, 2, 20, 6, 1).timetuple())
 
 wind = WindDataset.open_latest()
-stages = models.float_profile(2.0, 10000, tE, wind)
+warningcounts = WarningCounts()
+stages = models.float_profile(2.0, 200000, tE, wind, warningcounts)
 
 rise, float = solver.solve(t0, lat0, lng0, alt0, stages)
 
