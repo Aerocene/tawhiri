@@ -58,10 +58,12 @@ class Dataset(object):
 
     """
 
+    forecast_range = range(0, 192 + 3, 3)
+
     #: The dimensions of the dataset
     #:
     #: Note ``len(axes[i]) == shape[i]``.
-    shape = (65, 47, 3, 361, 720)
+    shape = (len(forecast_range), 47, 3, 361, 720)
 
     # TODO: use the other levels too?
     # {10, 80, 100}m heightAboveGround (u, v)
@@ -87,7 +89,7 @@ class Dataset(object):
     #: For example, ``axes.pressure[4]`` is ``900`` - points in
     #: cells ``dataset.array[a][4][b][c][d]`` correspond to data at 900mb.
     axes = _axes_type(
-        range(0, 192 + 3, 3),
+        forecast_range,
         sorted(pressures_pgrb2f + pressures_pgrb2bf, reverse=True),
         ["height", "wind_u", "wind_v"],
         [x/2.0 for x in range(-180, 180 + 1)],
@@ -115,6 +117,52 @@ class Dataset(object):
 
     #: The default location of wind data
     DEFAULT_DIRECTORY = '/srv/tawhiri-datasets'
+
+    @classmethod
+    def forecast_hours(cls):
+        """
+        Returns the amount of available forcasting hours
+
+        :rtype: int
+        """
+        return (cls.shape[0]-1) * 3
+
+    @classmethod
+    def setup(cls, forecastHours=192):
+        """
+        sets up the class for a certain amount of forcasting hours
+
+        :type forecastHours: int
+        :param forecastHours: amount of available forecasting hours
+        """
+
+        forecast_range = range(0, forecastHours + 3, 3)
+
+        #: The dimensions of the dataset
+        #:
+        #: Note ``len(axes[i]) == shape[i]``.
+        shape = (len(forecast_range), 47, 3, 361, 720)
+
+        axes = cls._axes_type(
+            forecast_range,
+            sorted(cls.pressures_pgrb2f + cls.pressures_pgrb2bf, reverse=True),
+            ["height", "wind_u", "wind_v"],
+            [x/2.0 for x in range(-180, 180 + 1)],
+            [x/2.0 for x in range(0, 720)]
+        )
+        assert shape == tuple(len(x) for x in axes)
+
+        # adjust size
+        size = cls.element_size
+        for _x in shape:
+            size *= _x
+        del _x
+
+        # set class fields
+        cls.size = size
+        cls.forecast_range = forecast_range
+        cls.shape = shape
+        cls.axes = axes
 
     @classmethod
     def filename(cls, ds_time, directory=DEFAULT_DIRECTORY, suffix=''):
@@ -177,7 +225,7 @@ class Dataset(object):
         cls.cached_latest = None
 
     @classmethod
-    def open_latest(cls, directory=DEFAULT_DIRECTORY, persistent=False):
+    def open_latest(cls, directory=DEFAULT_DIRECTORY, persistent=False, determineTime=True):
         """
         Find the most recent datset in `directory`, and open it
 
@@ -185,6 +233,8 @@ class Dataset(object):
         :param directory: directory to search
         :type persistent: bool
         :param persistent: should the latest dataset be cached, and re-used?
+        :type determineTime: bool
+        :param determineTime: should available forecast hours should be determined by filesize?
         :rtype: :class:`Dataset`
         """
 
@@ -203,7 +253,7 @@ class Dataset(object):
 
             return cls.cached_latest
         else:
-            ds = Dataset(latest, directory=directory)
+            ds = Dataset(latest, directory=directory, determineTime=determineTime)
 
             if persistent:
                 # Start the countdown
@@ -213,7 +263,7 @@ class Dataset(object):
 
             return ds
 
-    def __init__(self, ds_time, directory=DEFAULT_DIRECTORY, new=False):
+    def __init__(self, ds_time, directory=DEFAULT_DIRECTORY, new=False, determineTime=True):
         """
         Open the dataset file for `ds_time`, in `directory`
 
@@ -225,6 +275,8 @@ class Dataset(object):
         :param new: should a new (blank) dataset be created (overwriting
                     any file that happened to already be there), or should
                     an existing dataset be opened?
+        :type determineTime: bool
+        :param determineTime: should available forecast hours should be determined by filesize?
         """
 
         self.directory = directory
@@ -253,6 +305,12 @@ class Dataset(object):
             else:
                 f.seek(0, 2)
                 sz = f.tell()
+
+                if determineTime:
+                    # use filesize to determine available forecasting hours
+                    time = sz / self.element_size / self.shape[1] / self.shape[2] / self.shape[3] / self.shape[4]
+                    self.setup((time-1)*3)
+
                 if sz != self.size:
                     raise ValueError("Dataset should be {0} bytes (was {1})"
                                         .format(self.size, sz))

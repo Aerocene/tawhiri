@@ -56,6 +56,7 @@ cdef struct Lerp3:
     long hour, lat, lng
     double lerp
 
+cdef int hour_axis_len
 
 class RangeError(ValueError):
     def __init__(self, variable, value):
@@ -73,13 +74,16 @@ def make_interpolator(dataset, WarningCounts warnings):
     to us, and then returns a closure that can be used to retrieve
     wind velocities.
     """
+    
+    global hour_axis_len
 
     cdef float[:, :, :, :, :] data
 
     if warnings is None:
         raise TypeError("Warnings must not be None")
 
-    data = MagicMemoryView(dataset.array, (65, 47, 3, 361, 720), b"f")
+    hour_axis_len = dataset.shape[0]
+    data = MagicMemoryView(dataset.array, dataset.shape, b"f")
 
     def f(hour, lat, lng, alt):
         return get_wind(data, warnings, hour, lat, lng, alt)
@@ -149,7 +153,7 @@ cdef long pick3(double hour, double lat, double lng, Lerp3[8] out) except -1:
     # However, the longitude does wrap around, so we tell `pick` that the
     # longitude axis is one larger than it is (so that it can "choose" the
     # 721st point/the 360 degrees point), then wrap it afterwards.
-    pick(0, 3, 65, hour, "hour", lhour)
+    pick(0, 3, hour_axis_len, hour, "hour", lhour)
     pick(-90, 0.5, 361, lat, "lat", llat)
     pick(0, 0.5, 720 + 1, lng, "lng", llng)
     if llng[1].index == 720:
