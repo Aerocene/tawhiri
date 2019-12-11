@@ -229,6 +229,15 @@ def run_prediction(req):
                                          ruaumoko_ds(),
                                          warningcounts)
     elif req['profile'] == PROFILE_FLOAT:
+        # make sure stop_time is within dataset
+        # adjust stop_time if necessary
+        # if no stop_time: use full dataset
+        ds_end = tawhiri_ds.ds_time + timedelta(hours=tawhiri_ds.forecast_hours(), minutes=-1)
+        ds_end_ts = time.mktime(ds_end.timetuple())
+
+        if req['stop_datetime'] is None or req['stop_datetime'] > ds_end_ts:
+            req['stop_datetime'] = ds_end_ts
+
         stages = models.float_profile(req['ascent_rate'],
                                       req['float_altitude'],
                                       req['stop_datetime'],
