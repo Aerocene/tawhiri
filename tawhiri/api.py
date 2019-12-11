@@ -256,7 +256,7 @@ def run_prediction(req):
 
     # Convert request UNIX timestamps to RFC3339 timestamps
     for key in resp['request']:
-        if "datetime" in key:
+        if "datetime" in key and resp['request'][key] != None:
             resp['request'][key] = _timestamp_to_rfc3339(resp['request'][key])
 
     resp["warnings"] = warningcounts.to_dict()
