@@ -220,7 +220,7 @@ def run_prediction(req):
     except ValueError as e:
         raise InvalidDatasetException(*e.args)
 
-    # Note that hours and minutes are set to 00 as Tawhiri uses hourly datasets
+    # Note that minutes and seconds are set to 00 as Tawhiri uses hourly datasets
     resp['request']['dataset'] = \
             tawhiri_ds.ds_time.strftime("%Y-%m-%dT%H:00:00Z")
 
