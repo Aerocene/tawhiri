@@ -154,6 +154,10 @@ def parse_request(data):
             _extract_parameter(data, "stop_datetime", _rfc3339_to_timestamp,
                                validator=lambda x: x > req['launch_datetime'],
                                ignore=True)
+        req['offset_days'] = \
+           _extract_parameter(data, "offset_days", float,
+                              validator=lambda x: x > 0,
+                              ignore=True)
     else:
         raise RequestException("Unknown profile '%s'." % req['profile'])
 
@@ -229,6 +233,12 @@ def run_prediction(req):
                                          ruaumoko_ds(),
                                          warningcounts)
     elif req['profile'] == PROFILE_FLOAT:
+
+        if req['offset_days'] != None:
+            # adjust starttime
+            new_datetime = tawhiri_ds.ds_time + timedelta(days=req['offset_days'])
+            req['launch_datetime'] = time.mktime(new_datetime.timetuple())
+
         # make sure stop_time is within dataset
         # adjust stop_time if necessary
         # if no stop_time: use full dataset
