@@ -156,7 +156,7 @@ def parse_request(data):
                                ignore=True)
         req['offset_days'] = \
            _extract_parameter(data, "offset_days", float,
-                              validator=lambda x: x > 0,
+                              validator=lambda x: x >= 0,
                               ignore=True)
     else:
         raise RequestException("Unknown profile '%s'." % req['profile'])
