@@ -20,7 +20,7 @@ Provide the HTTP API for Tawhiri.
 """
 
 from flask import Flask, jsonify, request, g
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import strict_rfc3339
 
