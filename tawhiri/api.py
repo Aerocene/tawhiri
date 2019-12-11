@@ -21,6 +21,7 @@ Provide the HTTP API for Tawhiri.
 
 from flask import Flask, jsonify, request, g
 from datetime import datetime, timedelta
+from suntime import Sun, SunTimeException
 import time
 import strict_rfc3339
 
@@ -158,6 +159,10 @@ def parse_request(data):
            _extract_parameter(data, "offset_days", float,
                               validator=lambda x: x >= 0,
                               ignore=True)
+        req['use_sunrise'] = \
+           _extract_parameter(data, "use_sunrise", int,
+                              validator=lambda x: x >= 0,
+                              ignore=True)
     else:
         raise RequestException("Unknown profile '%s'." % req['profile'])
 
@@ -234,7 +239,17 @@ def run_prediction(req):
                                          warningcounts)
     elif req['profile'] == PROFILE_FLOAT:
 
-        if req['offset_days'] != None:
+
+        if req['use_sunrise'] != None and req['use_sunrise'] > 0:
+            # get sunrise from gps
+            if req['offset_days'] != None:
+                new_datetime = tawhiri_ds.ds_time + timedelta(days=req['offset_days'])
+                new_datetime = Sun(req['launch_latitude'], req['launch_longitude']).get_sunrise_time(new_datetime.date())
+                req['launch_datetime'] = time.mktime(new_datetime.timetuple())
+            else:
+                new_datetime = Sun(req['launch_latitude'], req['launch_longitude']).get_sunrise_time(datetime.fromtimestamp(req['launch_datetime']).date())
+                req['launch_datetime'] = time.mktime(new_datetime.timetuple())
+        elif req['offset_days'] != None:
             # adjust starttime
             new_datetime = tawhiri_ds.ds_time + timedelta(days=req['offset_days'])
             req['launch_datetime'] = time.mktime(new_datetime.timetuple())

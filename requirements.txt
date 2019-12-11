@@ -1,6 +1,8 @@
 # Required for setup.py
 Cython
 
+suntime
+
 # Documentation
 sphinx
 docutils
