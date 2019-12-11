@@ -36,6 +36,7 @@ API_VERSION = 1
 LATEST_DATASET_KEYWORD = "latest"
 PROFILE_STANDARD = "standard_profile"
 PROFILE_FLOAT = "float_profile"
+DEFAULT_TIME_RESOLUTION = 60.0
 
 
 # Util functions ##############################################################
@@ -121,6 +122,11 @@ def parse_request(data):
         _extract_parameter(data, "launch_datetime", _rfc3339_to_timestamp)
     req['launch_altitude'] = \
         _extract_parameter(data, "launch_altitude", float, ignore=True)
+    req['time_resolution'] = \
+        _extract_parameter(data, "time_resolution", float,
+                           DEFAULT_TIME_RESOLUTION,
+                           validator=lambda x: x > 0,
+                           ignore=True)
 
     # If no launch altitude provided, use Ruaumoko to look it up
     if req['launch_altitude'] is None:
@@ -273,9 +279,12 @@ def run_prediction(req):
 
     # Run solver
     try:
-        result = solver.solve(req['launch_datetime'], req['launch_latitude'],
-                              req['launch_longitude'], req['launch_altitude'],
-                              stages)
+        result = solver.solve(req['launch_datetime'],
+                              req['launch_latitude'],
+                              req['launch_longitude'],
+                              req['launch_altitude'],
+                              stages,
+                              req['time_resolution'])
     except Exception as e:
         raise PredictionException("Prediction did not complete: '%s'." %
                                   str(e))
