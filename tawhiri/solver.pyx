@@ -50,6 +50,15 @@ cdef Vector vecadd(Vector a, double k, Vector b):
     r.lat = a.lat + k * b.lat
     r.lng = a.lng + k * b.lng
     r.alt = a.alt + k * b.alt
+
+    # correct latitude/longitude on poles
+    if r.lat > 90.0:
+        r.lat = 90.0 - (r.lat % 90.0)
+        r.lng += 180.0
+    if r.lat < -90.0:
+        r.lat = -90.0 - (r.lat % -90.0)
+        r.lng += 180.0
+
     r.lng %= 360.0
     return r
 
