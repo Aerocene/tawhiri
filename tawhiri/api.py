@@ -245,18 +245,34 @@ def run_prediction(req):
                                          warningcounts)
     elif req['profile'] == PROFILE_FLOAT:
 
-
         if req['use_sunrise'] != None and req['use_sunrise'] > 0:
-            # get sunrise from gps
+
+            lat = req['launch_latitude']
+            lng = req['launch_longitude']
+
             if req['offset_days'] != None:
-                new_datetime = tawhiri_ds.ds_time + timedelta(days=req['offset_days'])
-                new_datetime = Sun(req['launch_latitude'], req['launch_longitude']).get_sunrise_time(new_datetime.date())
+                # get first possible start datetime (at sunrise...?)
+                new_datetime = Sun(lat, lng).get_sunrise_time(tawhiri_ds.ds_time.date())
+                if new_datetime.hour < tawhiri_ds.ds_time.hour:
+                    # can only start next day - correct day +1
+                    new_datetime = Sun(lat, lng).get_sunrise_time(tawhiri_ds.ds_time.date() + timedelta(days=1))
+
+                # add offset days
+                new_datetime = new_datetime + timedelta(days=req['offset_days'])
+                # set new launch datetime
                 req['launch_datetime'] = time.mktime(new_datetime.timetuple())
             else:
-                new_datetime = Sun(req['launch_latitude'], req['launch_longitude']).get_sunrise_time(datetime.fromtimestamp(req['launch_datetime']).date())
+                # time at sunrise the day of given launch_datetime
+                new_datetime = Sun(lat, lng).get_sunrise_time(datetime.fromtimestamp(req['launch_datetime']).date())
+                if new_datetime.hour < tawhiri_ds.ds_time.hour:
+                    # can only start next day - correct day +1
+                    new_datetime = Sun(lat, lng).get_sunrise_time(datetime.fromtimestamp(req['launch_datetime']).date() + timedelta(days=1))
+
+                # set new launch datetime
                 req['launch_datetime'] = time.mktime(new_datetime.timetuple())
+
         elif req['offset_days'] != None:
-            # adjust starttime
+            # use dataset datetime + day-offset
             new_datetime = tawhiri_ds.ds_time + timedelta(days=req['offset_days'])
             req['launch_datetime'] = time.mktime(new_datetime.timetuple())
 
