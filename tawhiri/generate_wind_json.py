@@ -45,8 +45,6 @@ forecast_days = int(wind.forecast_hours() / 24)
 
 # geo6 contains lat,lng for our lookup
 geo6_json = json.load(open('geo6.json'))
-vertices=iter(geo6_json['vertices'])
-
 
 def latLonToXYZ(lat,lon,radius=200):
     theta=(lon+180)*(math.pi/180)
@@ -69,6 +67,7 @@ def generateWindJson(time, alt):
     logger.info("generating wind data for altitude: " + str(alt) + " time: " + str(time))
 
     data=[]
+    vertices=iter(geo6_json['vertices'])
     for lat,lon in zip(vertices,vertices):
         x,y,z=latLonToXYZ(lat,lon)
 
