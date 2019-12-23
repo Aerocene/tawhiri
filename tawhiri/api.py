@@ -36,6 +36,7 @@ API_VERSION = 1
 LATEST_DATASET_KEYWORD = "latest"
 PROFILE_STANDARD = "standard_profile"
 PROFILE_FLOAT = "float_profile"
+PROFILE_UP_DOWN = "up_down_profile"
 DEFAULT_TIME_RESOLUTION = 60.0
 
 
@@ -144,16 +145,20 @@ def parse_request(data):
     launch_alt = req["launch_altitude"]
 
     if req['profile'] == PROFILE_STANDARD:
-        req['ascent_rate'] = _extract_parameter(data, "ascent_rate", float,
-                                                validator=lambda x: x > 0)
+        req['ascent_rate'] = \
+            _extract_parameter(data, "ascent_rate", float,
+                               validator=lambda x: x > 0)
         req['burst_altitude'] = \
             _extract_parameter(data, "burst_altitude", float,
                                validator=lambda x: x > launch_alt)
-        req['descent_rate'] = _extract_parameter(data, "descent_rate", float,
-                                                 validator=lambda x: x > 0)
+        req['descent_rate'] = \
+            _extract_parameter(data, "descent_rate", float,
+                               validator=lambda x: x > 0)
+
     elif req['profile'] == PROFILE_FLOAT:
-        req['ascent_rate'] = _extract_parameter(data, "ascent_rate", float,
-                                                validator=lambda x: x > 0)
+        req['ascent_rate'] = \
+            _extract_parameter(data, "ascent_rate", float,
+                               validator=lambda x: x > 0)
         req['float_altitude'] = \
             _extract_parameter(data, "float_altitude", float,
                                validator=lambda x: x > launch_alt)
@@ -169,6 +174,36 @@ def parse_request(data):
            _extract_parameter(data, "use_sunrise", int,
                               validator=lambda x: x >= 0,
                               ignore=True)
+
+    elif req['profile'] == PROFILE_UP_DOWN:
+        req['ascent_rate'] = \
+            _extract_parameter(data, "ascent_rate", float,
+                               validator=lambda x: x > 0)
+        req['float_altitude'] = \
+            _extract_parameter(data, "float_altitude", float,
+                               validator=lambda x: x > launch_alt)
+        req['stop_datetime'] = \
+            _extract_parameter(data, "stop_datetime", _rfc3339_to_timestamp,
+                               validator=lambda x: x > req['launch_datetime'],
+                               ignore=True)
+        req['offset_days'] = \
+           _extract_parameter(data, "offset_days", float,
+                              validator=lambda x: x >= 0,
+                              ignore=True)
+        req['use_sunrise'] = \
+           _extract_parameter(data, "use_sunrise", int,
+                              validator=lambda x: x >= 0,
+                              ignore=True)
+        req['descent_rate'] = \
+            _extract_parameter(data, "descent_rate", float,
+                               validator=lambda x: x > 0,
+                               ignore=True)
+        req['descent_before_sunset'] = \
+            _extract_parameter(data, "descent_before_sunset", float,
+                               0.0,
+                               validator=lambda x: x >= 0,
+                               ignore=True)
+
     else:
         raise RequestException("Unknown profile '%s'." % req['profile'])
 
@@ -235,15 +270,9 @@ def run_prediction(req):
     resp['request']['dataset'] = \
             tawhiri_ds.ds_time.strftime("%Y-%m-%dT%H:00:00Z")
 
-    # Stages
-    if req['profile'] == PROFILE_STANDARD:
-        stages = models.standard_profile(req['ascent_rate'],
-                                         req['burst_altitude'],
-                                         req['descent_rate'],
-                                         tawhiri_ds,
-                                         ruaumoko_ds(),
-                                         warningcounts)
-    elif req['profile'] == PROFILE_FLOAT:
+
+    # correct times for float and up-down
+    if req['profile'] == PROFILE_FLOAT or req['profile'] == PROFILE_UP_DOWN:
 
         if req['use_sunrise'] != None and req['use_sunrise'] > 0:
 
@@ -285,11 +314,35 @@ def run_prediction(req):
         if req['stop_datetime'] is None or req['stop_datetime'] > ds_end_ts:
             req['stop_datetime'] = ds_end_ts
 
+    # Stages
+    if req['profile'] == PROFILE_STANDARD:
+        stages = models.standard_profile(req['ascent_rate'],
+                                         req['burst_altitude'],
+                                         req['descent_rate'],
+                                         tawhiri_ds,
+                                         ruaumoko_ds(),
+                                         warningcounts)
+    elif req['profile'] == PROFILE_FLOAT:
+
         stages = models.float_profile(req['ascent_rate'],
                                       req['float_altitude'],
                                       req['stop_datetime'],
                                       tawhiri_ds,
                                       warningcounts)
+
+    elif req['profile'] == PROFILE_UP_DOWN:
+        # use ascent rate if descent rate is not defined
+        if req['descent_rate'] == None:
+            req['descent_rate'] = req['ascent_rate']
+
+        stages = models.up_down_profile(req['ascent_rate'],
+                                      req['float_altitude'],
+                                      req['descent_rate'],
+                                      req['descent_before_sunset'],
+                                      req['stop_datetime'],
+                                      tawhiri_ds,
+                                      warningcounts)
+
     else:
         raise InternalException("No implementation for known profile.")
 
@@ -310,6 +363,8 @@ def run_prediction(req):
         resp['prediction'] = _parse_stages(["ascent", "descent"], result)
     elif req['profile'] == PROFILE_FLOAT:
         resp['prediction'] = _parse_stages(["ascent", "float"], result)
+    elif req['profile'] == PROFILE_UP_DOWN:
+        resp['prediction'] = _parse_stages(["float"], [result[0]])
     else:
         raise InternalException("No implementation for known profile.")
 

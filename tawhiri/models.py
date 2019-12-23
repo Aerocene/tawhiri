@@ -24,6 +24,7 @@ import calendar
 import math
 import time
 from datetime import datetime, timedelta
+from suntime import Sun, SunTimeException
 
 from . import interpolate
 
@@ -72,6 +73,53 @@ def make_drag_descent(sea_level_descent_rate):
     return drag_descent
 
 
+def make_ascent_descent(ascent_rate, float_alt, descent_rate, descent_before_sunset = 0):
+    """Return a simple up-down model based on sunset and sunrise. Descent begins
+       start_descent_before_sunset_time before sunset, ascent begins at sunrise.
+       we ascend until we reach float altitude
+
+       :param descent_before_sunset: time in seconds before sunset to start descent
+    """
+    def up_down(t, lat, lng, alt):
+        # get sunset time at current position
+        date = datetime.fromtimestamp(t).date()
+        descent_t = 0
+        sunrise_t = 0
+
+        try:
+            sunset_dt = Sun(lat, lng).get_sunset_time(date)
+            descent_t = time.mktime(sunset_dt.timetuple()) - descent_before_sunset
+        except SunTimeException:
+            # sun does never set
+            descent_t = 0
+
+        try:
+            sunrise_dt = Sun(lat, lng).get_sunrise_time(date)
+            sunrise_t = time.mktime(sunrise_dt.timetuple())
+        except SunTimeException:
+            # sun does never rise
+            sunrise_t = 0
+
+        # check for valid sun set/rise times
+        if descent_t == 0 or sunrise_t == 0:
+            # either sun does not rise, or sun does not set
+            # on both cases we stay where we are
+            return 0.0, 0.0, 0.0
+
+        # check if we ascend or descend
+        if t > descent_t or t < sunrise_t:
+            # either it is after descent time
+            # or before sunrise. in both cases we descend
+            return 0.0, 0.0, -descent_rate
+        elif alt < float_alt:
+            # we are below float altitude, we ascend
+            return 0.0, 0.0, ascent_rate
+
+        # stay where we are
+        return 0.0, 0.0, 0.0
+
+    return up_down
+
 ## Sideways Models ############################################################
 
 
@@ -83,12 +131,14 @@ def make_wind_velocity(dataset, warningcounts):
     get_wind = interpolate.make_interpolator(dataset, warningcounts)
     dataset_epoch = calendar.timegm(dataset.ds_time.timetuple())
     def wind_velocity(t, lat, lng, alt):
-        t -= dataset_epoch
-        u, v = get_wind(t / 3600.0, lat, lng, alt)
-        R = 6371009 + alt
-        dlat = _180_PI * v / R
-        dlng = _180_PI * u / (R * math.cos(lat * _PI_180))
-        return dlat, dlng, 0.0
+        if alt > 0:
+            t -= dataset_epoch
+            u, v = get_wind(t / 3600.0, lat, lng, alt)
+            R = 6371009 + alt
+            dlat = _180_PI * v / R
+            dlng = _180_PI * u / (R * math.cos(lat * _PI_180))
+            return dlat, dlng, 0.0
+        return 0.0, 0.0, 0.0
     return wind_velocity
 
 
@@ -206,3 +256,25 @@ def float_profile(ascent_rate, float_altitude, stop_time, dataset, warningcounts
     term_float = make_time_termination(stop_time)
 
     return ((model_up, term_up), (model_float, term_float))
+
+def up_down_profile(ascent_rate, float_altitude, descent_rate, descent_before_sunset, stop_time, dataset, warningcounts):
+    """Make a model chain for the simple floating balloon situation ascending
+       at sunrise and descending some time before sunset.
+       This goes on for a certain amount of time.
+
+       :param descent_before_sunset: time in seconds before sunset to start descent
+    """
+    # make sure stop_time is within dataset
+    # adjust stop_time if necessary
+    # if no stop_time: use full dataset
+    ds_end = dataset.ds_time + timedelta(hours=dataset.forecast_hours(), minutes=-1)
+    ds_end_ts = time.mktime(ds_end.timetuple())
+
+    if stop_time is None or stop_time > ds_end_ts:
+        stop_time = ds_end_ts
+
+    model_up_down = make_linear_model([make_ascent_descent(ascent_rate, float_altitude, descent_rate, descent_before_sunset),
+                                       make_wind_velocity(dataset, warningcounts)])
+    term_float = make_time_termination(stop_time)
+
+    return ((model_up_down, term_float), (model_up_down, term_float))

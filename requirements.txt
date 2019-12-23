@@ -1,7 +1,8 @@
 # Required for setup.py
 Cython
 
-suntime
+# use specific branch of suntime
+https://github.com/Aerocene/suntime/archive/use_python_datetime.zip
 
 # Documentation
 sphinx
