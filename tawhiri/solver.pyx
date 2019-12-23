@@ -156,6 +156,10 @@ def rk4(double t, double lat, double lng, double alt,
         t = t2
         y = y2
 
+        # note: should we use terrain instead?
+        if y.alt < 0:
+          y.alt = 0
+
         result.append((t, y.lat, y.lng, y.alt))
 
     # ... and binary search to find a point (t3, y3) between
@@ -184,6 +188,10 @@ def rk4(double t, double lat, double lng, double alt,
         else:
             left = mid
 
+    # note: should we use terrain instead?
+    if y3.alt < 0:
+      y3.alt = 0
+      
     # add the final point to the result
     result.append((t3, y3.lat, y3.lng, y3.alt))
     # the point (t2, y2) is discarded
