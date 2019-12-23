@@ -15,5 +15,6 @@ def kml(stages, markers, filename=None):
     kwargs = {'points': points, 'markers': markers}
     if filename:
         template.stream(**kwargs).dump(filename)
+        return filename
     else:
-        template.render(**kwargs)
+        return template.render(**kwargs)
