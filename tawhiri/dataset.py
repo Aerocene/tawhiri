@@ -136,7 +136,7 @@ class Dataset(object):
         :param forecastHours: amount of available forecasting hours
         """
 
-        forecast_range = range(0, forecastHours + 3, 3)
+        forecast_range = range(0, int(forecastHours) + 3, 3)
 
         #: The dimensions of the dataset
         #:
