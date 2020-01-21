@@ -73,43 +73,48 @@ def make_drag_descent(sea_level_descent_rate):
     return drag_descent
 
 
-def make_ascent_descent(ascent_rate, float_alt, descent_rate, descent_before_sunset = 0):
+def make_ascent_descent(ascent_rate, float_alt, descent_rate, descent_before_sunset = 0, descent_duration = -1):
     """Return a simple up-down model based on sunset and sunrise. Descent begins
        start_descent_before_sunset_time before sunset, ascent begins at sunrise.
        we ascend until we reach float altitude
 
        :param descent_before_sunset: time in seconds before sunset to start descent
+       :param descent_duration: duration of descent (in seconds)
     """
     def up_down(t, lat, lng, alt):
         # get sunset time at current position
-        date = datetime.fromtimestamp(t).date()
+        dt = datetime.fromtimestamp(t)
         descent_t = 0
         sunrise_t = 0
 
         try:
-            sunset_dt = Sun(lat, lng).get_sunset_time(date)
+            sunset_dt = Sun(lat, lng).get_sunset_time(dt.date())
             descent_t = time.mktime(sunset_dt.timetuple()) - descent_before_sunset
         except SunTimeException:
             # sun does never set
             descent_t = 0
 
         try:
-            sunrise_dt = Sun(lat, lng).get_sunrise_time(date)
+            sunrise_dt = Sun(lat, lng).get_sunrise_time(dt.date())
             sunrise_t = time.mktime(sunrise_dt.timetuple())
         except SunTimeException:
             # sun does never rise
             sunrise_t = 0
-
-        # check for valid sun set/rise times
-        if descent_t == 0 or sunrise_t == 0:
-            # either sun does not rise, or sun does not set
-            # on both cases we stay where we are
+            # we stay where we are
             return 0.0, 0.0, 0.0
 
+
         # check if we ascend or descend
-        if t > descent_t or t < sunrise_t:
+        # if sun never sets, we want to ascend
+        if descent_t > 0 and (t > descent_t or t < sunrise_t):
             # either it is after descent time
             # or before sunrise. in both cases we descend
+
+            # check stop-time...
+            if descent_duration >= 0 and t > (descent_t + descent_duration):
+                # stay where we are
+                return 0.0, 0.0, 0.0
+
             return 0.0, 0.0, -descent_rate
         elif alt < float_alt:
             # we are below float altitude, we ascend
@@ -257,12 +262,13 @@ def float_profile(ascent_rate, float_altitude, stop_time, dataset, warningcounts
 
     return ((model_up, term_up), (model_float, term_float))
 
-def up_down_profile(ascent_rate, float_altitude, descent_rate, descent_before_sunset, stop_time, dataset, warningcounts):
+def up_down_profile(ascent_rate, float_altitude, descent_rate, descent_before_sunset, descent_duration, stop_time, dataset, warningcounts):
     """Make a model chain for the simple floating balloon situation ascending
        at sunrise and descending some time before sunset.
        This goes on for a certain amount of time.
 
        :param descent_before_sunset: time in seconds before sunset to start descent
+       :param descent_duration: duration of descent (in seconds)
     """
     # make sure stop_time is within dataset
     # adjust stop_time if necessary
@@ -273,8 +279,8 @@ def up_down_profile(ascent_rate, float_altitude, descent_rate, descent_before_su
     if stop_time is None or stop_time > ds_end_ts:
         stop_time = ds_end_ts
 
-    model_up_down = make_linear_model([make_ascent_descent(ascent_rate, float_altitude, descent_rate, descent_before_sunset),
+    model_up_down = make_linear_model([make_ascent_descent(ascent_rate, float_altitude, descent_rate, descent_before_sunset, descent_duration),
                                        make_wind_velocity(dataset, warningcounts)])
     term_float = make_time_termination(stop_time)
 
-    return ((model_up_down, term_float), (model_up_down, term_float))
+    return ((model_up_down, term_float), )

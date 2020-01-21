@@ -200,9 +200,13 @@ def parse_request(data):
                                ignore=True)
         req['descent_before_sunset'] = \
             _extract_parameter(data, "descent_before_sunset", float,
-                               0.0,
+                               default=0.0,
                                validator=lambda x: x >= 0,
                                ignore=True)
+        req['descent_duration'] = \
+           _extract_parameter(data, "descent_duration", float,
+                              default=-1.0,
+                              ignore=True)
 
     else:
         raise RequestException("Unknown profile '%s'." % req['profile'])
@@ -340,6 +344,7 @@ def run_prediction(req):
                                       req['float_altitude'],
                                       req['descent_rate'],
                                       req['descent_before_sunset'],
+                                      req['descent_duration'],
                                       req['stop_datetime'],
                                       tawhiri_ds,
                                       warningcounts)
