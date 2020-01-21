@@ -243,7 +243,7 @@ def float_profile(ascent_rate, float_altitude, stop_time, dataset, warningcounts
     # make sure stop_time is within dataset
     # adjust stop_time if necessary
     # if no stop_time: use full dataset
-    ds_end = dataset.ds_time + timedelta(hours=dataset.forecast_hours(), minutes=-1)
+    ds_end = dataset.ds_time + timedelta(hours=dataset.forecast_hours(), minutes=-10)
     ds_end_ts = time.mktime(ds_end.timetuple())
 
     if stop_time is None or stop_time > ds_end_ts:
@@ -267,7 +267,7 @@ def up_down_profile(ascent_rate, float_altitude, descent_rate, descent_before_su
     # make sure stop_time is within dataset
     # adjust stop_time if necessary
     # if no stop_time: use full dataset
-    ds_end = dataset.ds_time + timedelta(hours=dataset.forecast_hours(), minutes=-1)
+    ds_end = dataset.ds_time + timedelta(hours=dataset.forecast_hours(), minutes=-10)
     ds_end_ts = time.mktime(ds_end.timetuple())
 
     if stop_time is None or stop_time > ds_end_ts:
