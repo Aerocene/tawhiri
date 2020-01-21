@@ -281,21 +281,23 @@ def run_prediction(req):
 
             if req['offset_days'] != None:
                 # get first possible start datetime (at sunrise...?)
-                new_datetime = Sun(lat, lng).get_sunrise_time(tawhiri_ds.ds_time.date())
+                new_datetime = Sun(lat, lng).get_local_sunrise_time(tawhiri_ds.ds_time.date())
+
                 if new_datetime.hour < tawhiri_ds.ds_time.hour:
                     # can only start next day - correct day +1
-                    new_datetime = Sun(lat, lng).get_sunrise_time(tawhiri_ds.ds_time.date() + timedelta(days=1))
+                    new_datetime = Sun(lat, lng).get_local_sunrise_time(tawhiri_ds.ds_time.date() + timedelta(days=1))
 
                 # add offset days
                 new_datetime = new_datetime + timedelta(days=req['offset_days'])
                 # set new launch datetime
                 req['launch_datetime'] = time.mktime(new_datetime.timetuple())
+
             else:
                 # time at sunrise the day of given launch_datetime
-                new_datetime = Sun(lat, lng).get_sunrise_time(datetime.fromtimestamp(req['launch_datetime']).date())
+                new_datetime = Sun(lat, lng).get_local_sunrise_time(datetime.fromtimestamp(req['launch_datetime']).date())
                 if new_datetime.hour < tawhiri_ds.ds_time.hour:
                     # can only start next day - correct day +1
-                    new_datetime = Sun(lat, lng).get_sunrise_time(datetime.fromtimestamp(req['launch_datetime']).date() + timedelta(days=1))
+                    new_datetime = Sun(lat, lng).get_local_sunrise_time(datetime.fromtimestamp(req['launch_datetime']).date() + timedelta(days=1))
 
                 # set new launch datetime
                 req['launch_datetime'] = time.mktime(new_datetime.timetuple())
@@ -323,7 +325,6 @@ def run_prediction(req):
                                          ruaumoko_ds(),
                                          warningcounts)
     elif req['profile'] == PROFILE_FLOAT:
-
         stages = models.float_profile(req['ascent_rate'],
                                       req['float_altitude'],
                                       req['stop_datetime'],
