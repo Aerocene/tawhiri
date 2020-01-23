@@ -24,6 +24,7 @@ import calendar
 import math
 import time
 from datetime import datetime, timedelta
+from dateutil import tz
 from suntime import Sun, SunTimeException
 
 from . import interpolate
@@ -32,6 +33,11 @@ from . import interpolate
 _PI_180 = math.pi / 180.0
 _180_PI = 180.0 / math.pi
 
+
+#!! attention !!
+# global variables allows single-threaded use only!
+# we do that for now using a wsgi setup with thread=1 but more instances
+descend_mark = -1.0
 
 ## Up/Down Models #############################################################
 
@@ -82,19 +88,19 @@ def make_ascent_descent(ascent_rate, float_alt, descent_rate, descent_before_sun
        :param descent_duration: duration of descent (in seconds)
     """
     def up_down(t, lat, lng, alt):
+        #!! attention !!
+        # global variables allows single-threaded use only!
+        # we do that for now using a wsgi setup with thread=1 but more instances
+        global descend_mark
+
+
         # get sunset time at current position
-        dt = datetime.fromtimestamp(t)
+        dt = datetime.fromtimestamp(t).replace(tzinfo=tz.UTC)
         descent_t = 0
         sunrise_t = 0
 
         try:
-            sunset_dt = Sun(lat, lng).get_sunset_time(dt.date())
-            descent_t = time.mktime(sunset_dt.timetuple()) - descent_before_sunset
-        except SunTimeException:
-            # sun does never set
-            descent_t = 0
-
-        try:
+            # sunrise in UTC
             sunrise_dt = Sun(lat, lng).get_sunrise_time(dt.date())
             sunrise_t = time.mktime(sunrise_dt.timetuple())
         except SunTimeException:
@@ -104,23 +110,47 @@ def make_ascent_descent(ascent_rate, float_alt, descent_rate, descent_before_sun
             return 0.0, 0.0, 0.0
 
 
-        # check if we ascend or descend
-        # if sun never sets, we want to ascend
-        if descent_t > 0 and (t > descent_t or t < sunrise_t):
-            # either it is after descent time
-            # or before sunrise. in both cases we descend
+        try:
+            # sunset in UTC
+            sunset_dt = Sun(lat, lng).get_sunset_time(dt.date())
+            descent_t = time.mktime(sunset_dt.timetuple()) - descent_before_sunset
+        except SunTimeException:
+            # sun does never set
+            descent_t = 0
 
-            # check stop-time...
-            if descent_duration >= 0 and t > (descent_t + descent_duration):
-                # stay where we are
+        # debug output
+        # print("t: ", dt.isoformat(), " sunset: ", sunset_dt.isoformat(), "sunrise: ", sunrise_dt.isoformat())
+
+        # check if we ascend or descend
+        # if sun never sets, we want to ascend##
+
+        should_descend = False
+
+        if descent_t < sunrise_t:
+            if descent_t > 0 and (t > descent_t and t < sunrise_t):
+                should_descend = True
+        else:
+            if descent_t > 0 and (t > descent_t or t < sunrise_t):
+                should_descend = True
+
+
+        if should_descend:
+
+            if descend_mark < 0:
+                descend_mark = t
+
+            if descent_duration >= 0 and t > (descend_mark + descent_duration):
                 return 0.0, 0.0, 0.0
 
             return 0.0, 0.0, -descent_rate
+
         elif alt < float_alt:
+            descend_mark = -1
             # we are below float altitude, we ascend
             return 0.0, 0.0, ascent_rate
 
         # stay where we are
+        descend_mark = -1
         return 0.0, 0.0, 0.0
 
     return up_down
@@ -273,7 +303,7 @@ def up_down_profile(ascent_rate, float_altitude, descent_rate, descent_before_su
     # make sure stop_time is within dataset
     # adjust stop_time if necessary
     # if no stop_time: use full dataset
-    ds_end = dataset.ds_time + timedelta(hours=dataset.forecast_hours(), minutes=-10)
+    ds_end = dataset.ds_time + timedelta(hours=dataset.forecast_hours(), minutes=-30)
     ds_end_ts = time.mktime(ds_end.timetuple())
 
     if stop_time is None or stop_time > ds_end_ts:
