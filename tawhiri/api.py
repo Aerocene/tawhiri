@@ -19,11 +19,16 @@
 Provide the HTTP API for Tawhiri.
 """
 
-from flask import Flask, jsonify, request, g
-from datetime import datetime, timedelta
-from suntime import Sun, SunTimeException
 import time
+import calendar
+import math
+from datetime import datetime, timedelta
+
+from dateutil import tz, parser
 import strict_rfc3339
+
+from flask import Flask, jsonify, request, g
+from suntime import Sun, SunTimeException
 
 from tawhiri import solver, models
 from tawhiri.dataset import Dataset as WindDataset
@@ -296,33 +301,44 @@ def run_prediction(req):
                 # add offset days
                 new_datetime = new_datetime + timedelta(days=req['offset_days'])
                 # set new launch datetime
-                req['launch_datetime'] = time.mktime(new_datetime.timetuple())
+                req['launch_datetime'] = calendar.timegm(new_datetime.timetuple())
 
             else:
                 # time at sunrise the day of given launch_datetime
                 # in UTC
-                new_datetime = Sun(lat, lng).get_sunrise_time(datetime.fromtimestamp(req['launch_datetime']).date())
+                launch_dt = datetime.fromtimestamp(req['launch_datetime'], tz.UTC)
+                new_datetime = Sun(lat, lng).get_sunrise_time(launch_dt.date())
                 if new_datetime.hour < tawhiri_ds.ds_time.hour:
                     # can only start next day - correct day +1
                     # in UTC
-                    new_datetime = Sun(lat, lng).get_sunrise_time(datetime.fromtimestamp(req['launch_datetime']).date() + timedelta(days=1))
+                    new_datetime = Sun(lat, lng).get_sunrise_time(launch_dt.date() + timedelta(days=1))
 
                 # set new launch datetime
-                req['launch_datetime'] = time.mktime(new_datetime.timetuple())
+                req['launch_datetime'] = calendar.timegm(new_datetime.timetuple())
 
         elif req['offset_days'] != None:
             # use dataset datetime + day-offset
             new_datetime = tawhiri_ds.ds_time + timedelta(days=req['offset_days'])
-            req['launch_datetime'] = time.mktime(new_datetime.timetuple())
+            req['launch_datetime'] = calendar.timegm(new_datetime.timetuple())
 
         # make sure stop_time is within dataset
         # adjust stop_time if necessary
         # if no stop_time: use full dataset
-        ds_end = tawhiri_ds.ds_time + timedelta(hours=tawhiri_ds.forecast_hours(), minutes=-1)
-        ds_end_ts = time.mktime(ds_end.timetuple())
+        t_res = req['time_resolution']
+        if t_res == None or math.isnan(t_res):
+            t_res = 60.0
+
+        ds_end = tawhiri_ds.ds_time + timedelta(hours=tawhiri_ds.forecast_hours(), seconds=-2*t_res)
+        ds_end_ts = calendar.timegm(ds_end.timetuple())
 
         if req['stop_datetime'] is None or req['stop_datetime'] > ds_end_ts:
             req['stop_datetime'] = ds_end_ts
+
+        if req['launch_datetime'] > req['stop_datetime']:
+            # we have too less forecasting data
+            # correct launch_datetime and try out best
+            req['launch_datetime'] = req['stop_datetime']
+
 
     # Stages
     if req['profile'] == PROFILE_STANDARD:

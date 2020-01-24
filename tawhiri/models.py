@@ -95,14 +95,14 @@ def make_ascent_descent(ascent_rate, float_alt, descent_rate, descent_before_sun
 
 
         # get sunset time at current position
-        dt = datetime.fromtimestamp(t).replace(tzinfo=tz.UTC)
+        dt = datetime.fromtimestamp(t, tz.UTC)
         descent_t = 0
         sunrise_t = 0
 
         try:
             # sunrise in UTC
             sunrise_dt = Sun(lat, lng).get_sunrise_time(dt.date())
-            sunrise_t = time.mktime(sunrise_dt.timetuple())
+            sunrise_t = calendar.timegm(sunrise_dt.timetuple())
         except SunTimeException:
             # sun does never rise
             sunrise_t = 0
@@ -113,7 +113,7 @@ def make_ascent_descent(ascent_rate, float_alt, descent_rate, descent_before_sun
         try:
             # sunset in UTC
             sunset_dt = Sun(lat, lng).get_sunset_time(dt.date())
-            descent_t = time.mktime(sunset_dt.timetuple()) - descent_before_sunset
+            descent_t = calendar.timegm(sunset_dt.timetuple()) - descent_before_sunset
         except SunTimeException:
             # sun does never set
             descent_t = 0
@@ -275,18 +275,12 @@ def float_profile(ascent_rate, float_altitude, stop_time, dataset, warningcounts
        amount of time before stopping. Descent is in general not modelled.
     """
 
-    # make sure stop_time is within dataset
-    # adjust stop_time if necessary
-    # if no stop_time: use full dataset
-    ds_end = dataset.ds_time + timedelta(hours=dataset.forecast_hours(), minutes=-10)
-    ds_end_ts = time.mktime(ds_end.timetuple())
-
-    if stop_time is None or stop_time > ds_end_ts:
-        stop_time = ds_end_ts
-
+    # up model
     model_up = make_linear_model([make_constant_ascent(ascent_rate),
                                   make_wind_velocity(dataset, warningcounts)])
     term_up = make_burst_termination(float_altitude)
+
+    # our float model once reached floating height
     model_float = make_wind_velocity(dataset, warningcounts)
     term_float = make_time_termination(stop_time)
 
@@ -300,15 +294,8 @@ def up_down_profile(ascent_rate, float_altitude, descent_rate, descent_before_su
        :param descent_before_sunset: time in seconds before sunset to start descent
        :param descent_duration: duration of descent (in seconds)
     """
-    # make sure stop_time is within dataset
-    # adjust stop_time if necessary
-    # if no stop_time: use full dataset
-    ds_end = dataset.ds_time + timedelta(hours=dataset.forecast_hours(), minutes=-30)
-    ds_end_ts = time.mktime(ds_end.timetuple())
 
-    if stop_time is None or stop_time > ds_end_ts:
-        stop_time = ds_end_ts
-
+    # up down model
     model_up_down = make_linear_model([make_ascent_descent(ascent_rate, float_altitude, descent_rate, descent_before_sunset, descent_duration),
                                        make_wind_velocity(dataset, warningcounts)])
     term_float = make_time_termination(stop_time)

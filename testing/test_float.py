@@ -41,18 +41,18 @@ if useSunrise == True:
 new_datetime = new_datetime + timedelta(days=offsetDays)
 
 ds_end = wind.ds_time + timedelta(hours=wind.forecast_hours(), minutes=-1)
-ds_end_ts = time.mktime(ds_end.timetuple())
+ds_end_ts = calendar.timegm(ds_end.timetuple())
 
 #t0 = calendar.timegm(datetime(2020, 1, 7, 21).timetuple())
 #tE = calendar.timegm(datetime(2014, 2, 20, 6, 1).timetuple())
 
-t0 = time.mktime(new_datetime.timetuple())
+t0 = calendar.timegm(new_datetime.timetuple())
 tE = ds_end_ts
 
 float_alt = 5500
 
 print "wind: ", wind.ds_time
-print "start: ", datetime.fromtimestamp(t0)
+print "start (local): ", datetime.fromtimestamp(t0)
 print "end: ", ds_end
 print "time resolution: ", timeResolution
 

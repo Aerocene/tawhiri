@@ -8,6 +8,8 @@ https://github.com/Aerocene/suntime/archive/use_python_datetime.zip
 sphinx
 docutils
 python-dateutil
+tzlocal
+pytz
 
 # Ourselves
 -e .
